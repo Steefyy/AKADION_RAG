@@ -1,0 +1,54 @@
+services:
+  # 1. Serviciul tau principal de Chat (Persoana A - Port 8000)
+  llm-chat-service:
+    build: .
+    container_name: llm-chat-service
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      - RERANKER_URL=http://reranker-service:8002/api/rerank/chunks
+      - EMBEDDER_URL=http://embedder-service:8001/api/query/embed
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+    depends_on:
+      - reranker-service
+      - embedder-service
+      - qdrant
+    restart: unless-stopped
+
+  # 2. Serviciul de Embedder & Ingestie (Persoana B - Port 8001 - CPU Only)
+  embedder-service:
+    build: ./embedder_service
+    container_name: embedder-service
+    ports:
+      - "8001:8001"
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - BGE_MODEL_PATH=BAAI/bge-m3
+    depends_on:
+      - qdrant
+    restart: unless-stopped
+
+  # 3. Serviciul de Reranker (Persoana C - Port 8002 - CPU Only)
+  reranker-service:
+    build: ./reranker-service
+    container_name: reranker-service
+    ports:
+      - "8002:8002"
+    restart: unless-stopped
+
+  # 4. Baza de Date Vectoriala Qdrant (Port 6333)
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant-vector-db
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
